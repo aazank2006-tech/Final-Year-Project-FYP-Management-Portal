@@ -1,0 +1,7 @@
+# Deployment output
+dist/
+.netlify/
+
+# Tooling artifacts
+.playwright-mcp/
+node_modules/
