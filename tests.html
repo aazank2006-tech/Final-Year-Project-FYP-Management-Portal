@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FYP Portal — Test Harness</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="app-view">
+    <div class="view-head"><div><h2>Test Harness</h2><p>Unit and integration checks for derivation, validation, and domain services.</p></div></div>
+    <div id="results" class="stack"></div>
+  </main>
+
+  <div id="role-switcher"></div>
+  <main id="app-view" class="app-view" hidden></main>
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root"></div>
+
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/selectors.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="js/domain/idea.js"></script>
+  <script src="js/domain/supervisorRequest.js"></script>
+  <script src="js/domain/milestone.js"></script>
+  <script src="js/domain/submission.js"></script>
+  <script src="js/domain/evaluation.js"></script>
+  <script src="js/domain/feedback.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/views/common.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+  window.addEventListener('DOMContentLoaded', function () {
+    var results = [];
+    function ok(cond, msg) { results.push({ pass: !!cond, msg: msg }); }
+    function eq(a, b, msg) { ok(a === b, msg + ' — expected ' + JSON.stringify(b) + ', got ' + JSON.stringify(a)); }
+
+    var C = FYP.Constants, S = FYP.Selectors, U = FYP.Utils, V = FYP.Validation, Store = FYP.Store;
+    var MS = C.MILESTONE_STATUS, SS = C.SUBMISSION_STATUS, DS = C.DEADLINE_STATE, PS = C.PROJECT_STATUS;
+
+    /* ensure store is initialised (app boot may already have done so) */
+    Store.init(FYP.Data.SEED);
+
+    /* --- selectors: progress --- */
+    eq(S.projectProgress('p1').label, '67%', 'p1 progress from 2/3 milestones');
+    eq(S.projectProgress('p5').label, 'Not started', 'p5 has no milestones -> Not started');
+    eq(S.projectProgress('p5').percent, null, 'p5 progress percent is null');
+    eq(S.projectProgress('p6').label, '100%', 'p6 fully complete');
+
+    /* --- selectors: deadline classification at boundaries --- */
+    var today = U.today();
+    eq(S.classifyDeadline(today), DS.DUE_SOON, 'due today -> Due Soon');
+    eq(S.classifyDeadline(U.toISODate(new Date(Date.now() + 7 * 86400000))), DS.DUE_SOON, 'due in 7 days -> Due Soon');
+    eq(S.classifyDeadline(U.toISODate(new Date(Date.now() + 8 * 86400000))), DS.UPCOMING, 'due in 8 days -> Upcoming');
+    eq(S.classifyDeadline(U.toISODate(new Date(Date.now() - 1 * 86400000))), DS.OVERDUE, 'due yesterday -> Overdue');
+    eq(S.classifyDeadline(null), null, 'no due date -> null');
+
+    /* --- selectors: capacity --- */
+    ok(S.supervisorCapacity('sup-3').atCapacity, 'sup-3 is at capacity');
+    ok(!S.supervisorCapacity('sup-4').atCapacity, 'sup-4 has free capacity');
+    eq(S.supervisorCapacity('sup-3').remaining, 0, 'sup-3 remaining is 0');
+
+    /* --- selectors: timeliness --- */
+    eq(S.submissionTimeliness(Store.find('submissions', 'sub-1')), 'On time', 'sub-1 on time');
+    eq(S.submissionTimeliness(Store.find('submissions', 'sub-2')), 'Late', 'sub-2 late');
+    eq(S.submissionTimeliness(Store.find('submissions', 'sub-6')), null, 'sub-6 no deadline -> null');
+
+    /* --- selectors: duplicate student id --- */
+    ok(S.isDuplicateStudentId('FA21-BSCS-001'), 'duplicate student id detected');
+
+    /* --- validation: idea --- */
+    ok(!V.idea({ title: '', description: 'a'.repeat(30) }).valid, 'empty title invalid');
+    ok(!V.idea({ title: 'x'.repeat(121), description: 'a'.repeat(30) }).valid, 'title > 120 invalid');
+    ok(!V.idea({ title: 'Valid', description: 'short' }).valid, 'short description invalid');
+    ok(!V.idea({ title: 'Campus Navigation Mobile App', description: 'a'.repeat(30) }, { ownerStudentId: 'stu-1' }).valid, 'duplicate title for same student invalid');
+
+    /* --- validation: evaluation --- */
+    ok(!V.evaluation({ projectId: 'p1', score: 150, judgment: 'Good' }).valid, 'score > 100 invalid');
+    ok(!V.evaluation({ projectId: 'p1', score: 'abc', judgment: 'Good' }).valid, 'non-numeric score invalid');
+    ok(!V.evaluation({ score: 80, judgment: 'Good' }).valid, 'missing target invalid');
+    ok(V.evaluation({ projectId: 'p1', score: 80, judgment: 'Good' }).valid, 'valid evaluation');
+
+    /* --- validation: revision reason --- */
+    ok(!V.revisionReason('').valid, 'empty revision reason invalid');
+
+    /* --- milestone: invalid transition + submission gate --- */
+    ok(!FYP.MilestoneService.setStatus('m7', MS.COMPLETED).ok, 'Pending -> Completed rejected');
+    ok(!FYP.MilestoneService.setStatus('m3', MS.COMPLETED).ok, 'submission-gated milestone completion blocked');
+    ok(FYP.MilestoneService.setStatus('m7', MS.IN_PROGRESS).ok, 'Pending -> In Progress allowed');
+
+    /* --- integration: idea -> request -> accept -> milestone -> submission -> evaluation --- */
+    var idea = FYP.IdeaService.submit(
+      { title: 'Integration Test Project', description: 'A project created by the automated integration test suite.' },
+      'stu-6'
+    );
+    ok(idea.ok, 'idea submission creates a project');
+    eq(Store.find('projects', idea.project.id).status, PS.IDEA_SUBMITTED, 'new project status is Idea Submitted');
+
+    var req = FYP.SupervisorRequestService.request(idea.project.id, 'sup-4');
+    ok(req.ok, 'supervision request recorded');
+    eq(Store.find('projects', idea.project.id).status, PS.SUPERVISOR_PENDING, 'project moves to Supervisor Pending');
+
+    var dec = FYP.SupervisorRequestService.decide(req.request.id, true);
+    ok(dec.ok, 'supervisor accepts request');
+    eq(Store.find('projects', idea.project.id).supervisorId, 'sup-4', 'supervisor assigned');
+    eq(Store.find('projects', idea.project.id).status, PS.IN_PROGRESS, 'project status is In Progress');
+
+    /* --- integration: at-capacity request is blocked --- */
+    var blocked = FYP.SupervisorRequestService.request('p5', 'sup-3');
+    ok(!blocked.ok, 'request to at-capacity supervisor is blocked');
+
+    /* --- evaluation service gating --- */
+    ok(!FYP.EvaluationService.record({ projectId: 'p1', score: 90, judgment: 'Good' }, C.ROLE.STUDENT, 'stu-1').ok, 'students cannot record evaluations');
+    ok(FYP.EvaluationService.record({ projectId: 'p1', score: 90, judgment: 'Good' }, C.ROLE.SUPERVISOR, 'sup-2').ok, 'supervisor can record evaluation');
+
+    /* --- render results --- */
+    var host = document.getElementById('results');
+    var passCount = results.filter(function (r) { return r.pass; }).length;
+    var summary = document.createElement('div');
+    summary.className = 'banner ' + (passCount === results.length ? 'banner-info' : 'banner-danger');
+    summary.textContent = passCount + ' / ' + results.length + ' checks passed';
+    summary.id = 'test-summary';
+    host.appendChild(summary);
+
+    results.forEach(function (r) {
+      var row = document.createElement('div');
+      row.className = 'card';
+      row.style.borderLeft = '4px solid ' + (r.pass ? '#1c6b41' : '#9d2b2b');
+      row.textContent = (r.pass ? 'PASS' : 'FAIL') + ' — ' + r.msg;
+      host.appendChild(row);
+    });
+    window.__TESTS__ = { total: results.length, passed: passCount };
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Final Year Project Management Portal</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#app-view">Skip to content</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">FYP</span>
+      <div class="brand-text">
+        <h1 class="brand-title">Final Year Project Portal</h1>
+        <p class="brand-subtitle">University Project Management Workspace</p>
+      </div>
+    </div>
+    <div class="role-switcher" id="role-switcher" aria-label="Acting role"></div>
+  </header>
+
+  <nav class="app-nav" id="app-nav" aria-label="Primary sections">
+    <a class="nav-link" href="#/dashboard" data-route="dashboard">Dashboard</a>
+    <a class="nav-link" href="#/projects" data-route="projects">Projects</a>
+    <a class="nav-link" href="#/students" data-route="students">Students</a>
+    <a class="nav-link" href="#/supervisors" data-route="supervisors">Supervisors</a>
+    <a class="nav-link" href="#/submissions" data-route="submissions">Submissions</a>
+    <a class="nav-link" href="#/evaluations" data-route="evaluations">Evaluations</a>
+  </nav>
+
+  <main id="app-view" class="app-view" tabindex="-1" aria-live="polite"></main>
+
+  <footer class="app-footer">
+    <span>Prototype &mdash; all data is dummy and stored in-session only.</span>
+  </footer>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Foundation -->
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/selectors.js"></script>
+  <script src="js/validation.js"></script>
+  <!-- Domain services -->
+  <script src="js/domain/idea.js"></script>
+  <script src="js/domain/supervisorRequest.js"></script>
+  <script src="js/domain/milestone.js"></script>
+  <script src="js/domain/submission.js"></script>
+  <script src="js/domain/evaluation.js"></script>
+  <script src="js/domain/feedback.js"></script>
+  <!-- Presentation -->
+  <script src="js/ui.js"></script>
+  <script src="js/router.js"></script>
+  <script src="js/views/common.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/projects.js"></script>
+  <script src="js/views/students.js"></script>
+  <script src="js/views/supervisors.js"></script>
+  <script src="js/views/submissions.js"></script>
+  <script src="js/views/evaluations.js"></script>
+  <!-- Bootstrap -->
+  <script src="js/app.js"></script>
+</body>
+</html>
